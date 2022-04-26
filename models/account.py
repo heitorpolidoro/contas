@@ -1,13 +1,33 @@
-from sqlalchemy import Column, Integer, String
+from enum import Enum
+from sqlalchemy import Column, Integer, String, Boolean
 
-from polidoro_model.base import Base
+from polidoro_model import Base
 
 
 class Account(Base):
+    class Type(Enum):
+        checking_account = 'checking_account'
+        auto_invest = 'auto_invest'
+        credit_card = 'credit_card'
+        other = 'other'
     __tablename__ = 'account'
+    __custom_str__ = '$class: $bank-$name($alias)-$type'
+    __option_str__ = '$bank-$name'
+    __table_str__ = '$bank-$name'
+    __attributes_options__ = {'type': list(t.value for t in Type)}
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, nullable=False, unique=True)
+    bank = Column(String, nullable=False)
+    type = Column(String, nullable=False)
+    name = Column(String, nullable=False)
     alias = Column(String, nullable=False, unique=True)
+    merged_balance = Column(Boolean, nullable=False, default=False)
+
+    # def ask_attribute(self, attribute):
+    #     default = None
+    #     if attribute == 'name':
+    #         default = f'{self.bank} - {self.type}'
+    #     Base.ask_attribute(self, attribute, default=default)
 
     # def __init__(self, *args, **kwargs):
     #     super(Account, self).__init__(*args, **kwargs)
@@ -37,4 +57,3 @@ class Account(Base):
     #
     # def _value_in_table(self):
     #     return self.name
-

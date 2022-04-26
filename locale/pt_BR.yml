@@ -1,2 +1,42 @@
 pt_BR:
+  y: s
+  'False': Não
+  'True': Sim
+  none: vazio
+
+  Account: Conta
+  bank: banco
+  type: tipo
   name: nome
+  alias: atalho
+  merged_balance: saldo unificado
+
+  Category: Categoria
+  fixed_origin: Origem Fixa
+  fixed_destination: Destino Fixo
+  delete: deletar
+  edit: editar
+  create: criar
+  opening_balance: Saldo Inicial
+  ending_balance: Saldo Final
+  transfer: Transferência
+
+  Balance: Saldo
+  account: conta
+  month: mês
+  year: ano
+  total_in: entrada
+  total_out: saída
+  balance: saldo
+
+  checking_account: Conta Corrente
+  auto_invest: Investimento Automático
+  credit_card: Cartão de Crédito
+  other: Outro
+
+  Nothing to: Nada para
+  Already exist a transaction like this, continue: Já existe uma transação assim, continuar
+  'Account with alias "': 'Conta com atalho "'
+  '" not found. Create': '" não encontrada. Criar'
+  'Use "': 'Usar "'
+  '" as category': '" como categoria'

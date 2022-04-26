@@ -1,8 +1,9 @@
+import calendar
 import csv
 import locale
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 
 class Parser:
@@ -23,7 +24,7 @@ class Parser:
         self.account = account
         self.encoding = encoding
         self.reason_regexes = reason_regexes
-        self.original_reason = None
+        self.reason = None
         self.date_format = date_format
         self.discard_lines = discard_lines
         self.line_regex = line_regex
@@ -31,7 +32,8 @@ class Parser:
         self.pre_interceptors = pre_interceptors
         self.post_interceptors = post_interceptors
 
-    def parse(self, file_name):
+    def parse(self, file_name, account):
+        self.account = account
         if self.locale:
             locale.setlocale(locale.LC_ALL, self.locale)
         with open(file_name, newline='', encoding=self.encoding) as file:
@@ -45,23 +47,24 @@ class Parser:
             if isinstance(line, list):
                 line_info = dict(
                     date=line[self.date_col],
-                    reason=line[self.reason_col],
+                    regexed_reason=line[self.reason_col],
                     value=line[self.value_col]
                 )
             elif isinstance(line, dict):
                 line_info = line
+                line_info.setdefault('regexed_reason', line['reason'])
 
             for interceptor in self.pre_interceptors:
                 line_info = interceptor(self, line_info)
 
-            line_info['reason'] = line_info['reason'].strip()
-            line_info['original_reason'] = line_info['reason']
+            line_info['regexed_reason'] = line_info['regexed_reason'].strip()
+            line_info['reason'] = line_info['regexed_reason']
             if self.locale:
                 line_info['value'] = locale.atof(line_info['value'])
             else:
                 line_info['value'] = float(line_info['value'])
 
-            line_info['reason'] = self.regex_reason(line_info['reason'])
+            line_info['regexed_reason'] = self.regex_reason(line_info['regexed_reason'])
             line_info['date'] = self.format_date(line_info['date'])
 
             if line_info['value'] < 0:
@@ -72,6 +75,7 @@ class Parser:
             for interceptor in self.post_interceptors:
                 line_info = interceptor(self, line_info)
 
+            line_info['value'] = abs(line_info['value'])
             return line_info
         except ValueError:
             print(self.__dict__)
@@ -87,12 +91,13 @@ class Parser:
             date = datetime.strptime(date, self.date_format).date()
         return date
 
-    def extract_info(self, lines):
+    def extract_info(self, lines, discard_lines=None):
         info = []
-        discard_first = self.discard_lines
+        if discard_lines is None:
+            discard_lines = self.discard_lines
         for line in lines:
-            if discard_first:
-                discard_first -= 1
+            if discard_lines:
+                discard_lines -= 1
                 continue
 
             info.append(self.extract_line_info(line))
@@ -127,7 +132,7 @@ class FundoBBParser(Parser):
                 if 'SALDO ATUAL' in line:
                     rendimentos['date'] = balance_info.groupdict()['date']
             else:
-                rendimento_info = re.search(r'(?P<reason>RENDIMENTO LÍQUIDO) *(?P<value>[\d\.,]+)', line)
+                rendimento_info = re.search(r'(?P<reason>RENDIMENTO LÍQUIDO) *(?P<value>[\d\.,-]+)', line)
                 if rendimento_info:
                     rendimentos.update(rendimento_info.groupdict())
                     info.append(self.extract_line_info(rendimentos))
@@ -160,8 +165,10 @@ class BradescoParser(Parser):
 
         old_locale = self.locale
         self.locale = None
-        self.account = 'FundoBRA'
-        transactions.extend(self.extract_info(transactions_to_create))
+        from models import Account
+
+        self.account = Account.filter(alias='FundoBRA').first()
+        transactions.extend(self.extract_info(transactions_to_create, discard_lines=0))
         self.locale = old_locale
         self.account = 'BRA'
         return transactions
@@ -187,7 +194,21 @@ def change_value_sign(_self, info):
 
 def fix_parc_date(_self, info):
     if 'PARC' in info['reason']:
-        info['date'] = None
+        parc = int(re.search(r'.*[ -]PARC (?P<parc>\d\d)/\d\d', info['reason']).groupdict()['parc'])
+        info_date = info['date']
+        month = info_date.month
+        year = info_date.year
+        while parc != 1:
+            month += 1
+            if month == 13:
+                month = 1
+                year += 1
+            parc -= 1
+        try:
+            info['date'] = date(year, month, info_date.day)
+        except ValueError as err:
+            if str(err) == 'day is out of range for month':
+                info['date'] = date(year, month, calendar.monthrange(year, month)[1])
     return info
 
 
@@ -215,7 +236,7 @@ Parser.parsers['fundobb'] = FundoBBParser(
 
 Parser.parsers['visabb'] = TXTParser(
     encoding='latin1', account='VisaBB', locale='pt_BR.UTF-8', date_format='%d.%m.%Y',
-    line_regex=r'(?P<date>\d\d.\d\d.\d\d\d\d)(?P<reason>.*?) (?P<value>[-\d\.]+,\d+).*0,00', discard_lines=1,
-    pre_interceptors=[change_value_sign, fix_parc_date], reason_regexes=[r'PARC \d\d/\d\d']
+    line_regex=r'(?P<date>\d\d.\d\d.\d\d\d\d)(?P<reason>.*?) (?P<value>[-\d\.]+,\d+).*0,00',
+    pre_interceptors=[change_value_sign], post_interceptors=[fix_parc_date], reason_regexes=[r'PARC \d\d/\d\d']
 
 )

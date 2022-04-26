@@ -1,18 +1,44 @@
-# from models import Account
-# from polidoro_sqlite_utils import SQLiteTable
-# from polidoro_sqlite_utils.types import ForeignKey, FloatField, TextField, DateField
-#
-#
-# class Transaction(SQLiteTable):
-#     date = DateField()
-#     category = TextField(null=True)
-#     origin = ForeignKey(Account, default=None, null=True)
-#     destination = ForeignKey(Account, default=None, null=True)
-#     value = FloatField()
-#     reason = TextField()
-#
-#     def __init__(self, *args, **kwargs):
-#         super(Transaction, self).__init__(*args, **kwargs)
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Float
+from sqlalchemy.orm import relationship
+
+from models import Account
+from polidoro_model import Base
+from polidoro_terminal import Format
+
+
+class Transaction(Base):
+    __tablename__ = 'transaction'
+    __custom_str__ = f'$date $reason {Format.BOLD}R$$ $value{Format.NORMAL} ' \
+                     'Origem: $(origin.name) Destino: $(destination.name)'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=False)
+    category_id = Column(Integer, ForeignKey('category.id'))
+    category = relationship("Category", foreign_keys=[category_id])
+    origin_id = Column(Integer, ForeignKey('account.id'), nullable=False)
+    origin = relationship("Account", foreign_keys=[origin_id])
+    destination_id = Column(Integer, ForeignKey('account.id'), nullable=False)
+    destination = relationship("Account", foreign_keys=[destination_id])
+    value = Column(Float, nullable=False)
+    reason = Column(String, nullable=True)
+
+    def __init__(self, *args, **kwargs):
+        super(Transaction, self).__init__(*args, **kwargs)
+        if isinstance(self.origin, str):
+            self.origin = Account.filter(alias=self.origin)[0]
+        if isinstance(self.destination, str):
+            self.destination = Account.filter(alias=self.destination)[0]
+            
+    def ask_attribute(self, attr):
+        if self.category:
+            if attr == 'origin' and self.category.fixed_origin:
+                self.set_attribute(attr, self.category.fixed_origin)
+                return
+            elif attr == 'destination' and self.category.fixed_destination:
+                self.set_attribute(attr, self.category.fixed_destination)
+                return
+        Base.ask_attribute(self, attr)
+
 #         self.original_reason = kwargs.get('original_reason', self.reason)
 #         if self.category not in ['opening_balance', 'ending_balance']:
 #             self.value = abs(self.value)

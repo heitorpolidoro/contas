@@ -1,2 +1,4 @@
+polidoro_argument>=3.5.1,<=4
+polidoro_model>=0.1.0,<=1
 SQLAlchemy~=1.4.31
 python-dateutil~=2.8.2
